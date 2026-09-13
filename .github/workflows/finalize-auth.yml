@@ -1,0 +1,60 @@
+name: Finalize Supabase auth
+
+on:
+  push:
+    paths:
+      - '.github/workflows/finalize-auth.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch auth redirect and add reset page
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          root = Path('index.html')
+          s = root.read_text(encoding='utf-8')
+          s = s.replace(
+              "const redirectTo=location.origin+'/account/update-password/'",
+              "const redirectTo='https://auraflare02.github.io/portfolio-websites/account/update-password/'"
+          )
+          s = s.replace('// auth demo', '// Supabase authentication')
+          s = s.replace(
+              'Demo mode: the account is stored only in this browser. It is not production authentication.',
+              'Account access is powered by Supabase Auth. New accounts may require email confirmation before first sign-in.'
+          )
+          s = s.replace(
+              'The account UI works as a browser-only demo. Production authentication requires a backend such as Supabase because GitHub Pages is a static host and cannot provide secure server-side authentication.',
+              'Sign up, sign in, sign out and password recovery use Supabase Auth.'
+          )
+          root.write_text(s, encoding='utf-8')
+
+          reset = Path('account/update-password/index.html')
+          reset.parent.mkdir(parents=True, exist_ok=True)
+          reset.write_text('''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Update your Auraflare02 account password."><title>Update password — Auraflare02</title><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0"></script><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 50% -10%,#18243b,#07090d 45%);color:#f4f6f2;font:15px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.box{width:min(470px,calc(100% - 30px));padding:25px;border:1px solid #ffffff18;border-radius:22px;background:#0d1118;box-shadow:0 40px 120px #0009}.ey{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#7f8999}.box h1{font-size:43px;line-height:.93;letter-spacing:-.07em;margin:9px 0 20px}.field{display:flex;flex-direction:column;gap:6px;margin-top:12px}.field label{font-size:11px;color:#98a2b0}.field input{padding:12px;border:1px solid #ffffff18;background:#ffffff08;color:#f4f6f2;border-radius:10px;outline:0}.field input:focus{border-color:#8ea7ff66;box-shadow:0 0 0 4px #8ea7ff12}.btn{width:100%;margin-top:15px;padding:12px;border:0;border-radius:11px;background:#f4f6f2;color:#07090d;font-weight:850;cursor:pointer}.status{min-height:20px;margin-top:10px;font-size:12px;color:#98a2b0}.success{color:#7be2b0}.error{color:#ff9a9a}.back{display:block;margin-top:14px;color:#98a2b0;font-size:12px;text-decoration:none}</style></head><body><main class="box"><div class="ey">Auraflare02 · Account</div><h1>Set a new password.</h1><form id="resetForm"><div class="field"><label for="newPassword">New password</label><input id="newPassword" type="password" minlength="6" autocomplete="new-password" required placeholder="6+ characters"></div><div class="field"><label for="confirmPassword">Confirm password</label><input id="confirmPassword" type="password" minlength="6" autocomplete="new-password" required placeholder="Repeat password"></div><button class="btn" type="submit">Update password →</button><div id="status" class="status"></div></form><a class="back" href="../../">← Back to portfolio</a></main><script>const client=supabase.createClient('https://hfvxgfmefxqdicavxjkq.supabase.co','sb_publishable_uNsaL7O4l0ybny3dVyZFZw__rDkSWfS');const statusEl=document.getElementById('status');client.auth.onAuthStateChange((event)=>{if(event==='PASSWORD_RECOVERY'){statusEl.textContent='Choose a new password.';statusEl.className='status success'}});(async()=>{const {data:{session}}=await client.auth.getSession();if(!session && !location.hash.includes('access_token')){statusEl.textContent='Open this page from the password-reset email.';statusEl.className='status error'}})();document.getElementById('resetForm').onsubmit=async(e)=>{e.preventDefault();statusEl.textContent='Updating…';statusEl.className='status';const a=document.getElementById('newPassword').value,b=document.getElementById('confirmPassword').value;if(a!==b){statusEl.textContent='Passwords do not match.';statusEl.className='status error';return}const {error}=await client.auth.updateUser({password:a});if(error){statusEl.textContent=error.message;statusEl.className='status error';return}statusEl.textContent='Password updated successfully. Return to the portfolio and sign in.';statusEl.className='status success';setTimeout(()=>client.auth.signOut(),1500)};</script></body></html>''', encoding='utf-8')
+          PY
+
+          python3 - <<'PY'
+          import re, pathlib
+          s = pathlib.Path('index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script[^>]*>(.*?)</script>', s, re.S)
+          pathlib.Path('/tmp/auth-check.js').write_text('\n'.join(scripts), encoding='utf-8')
+          PY
+          node --check /tmp/auth-check.js
+          git diff --check
+
+      - name: Commit finalized auth
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html account/update-password/index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Finalize real Supabase auth and password recovery'
+          git push
