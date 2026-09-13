@@ -1,0 +1,194 @@
+name: Wire Supabase authentication
+
+on:
+  push:
+    paths:
+      - '.github/workflows/wire-supabase-auth.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  wire-auth:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Patch portfolio and add password reset page
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          ROOT = Path('index.html')
+          root = ROOT.read_text(encoding='utf-8')
+
+          CDN = '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0"></script>'
+          if 'supabase-js@2.116.0' not in root:
+              root = root.replace('</head>', CDN + '</head>', 1)
+
+          root = root.replace(
+              'The account UI works as a browser-only demo. Production authentication requires a backend such as Supabase because GitHub Pages is a static host and cannot provide secure server-side authentication.',
+              'Sign up, sign in, sign out and password recovery are powered by Supabase Auth. New accounts may need email confirmation before first sign-in.'
+          )
+          root = root.replace(
+              'Demo auth only: stored in this browser. For real user accounts, connect a backend such as Supabase.',
+              'Real account security is handled by Supabase Auth. Passwords are not stored in this website.'
+          )
+          root = root.replace(
+              'Demo auth: this portfolio stores the account in your browser only.',
+              'Account access is powered by Supabase Auth.'
+          )
+
+          if '<!-- REAL_SUPABASE_AUTH -->' not in root:
+              css_js = r'''
+<!-- REAL_SUPABASE_AUTH -->
+<style>
+#authModal{display:none!important}
+.real-auth{position:fixed;inset:0;z-index:1000;display:none;align-items:center;justify-content:center;padding:18px;background:#000a}
+.real-auth.show{display:flex}
+.real-auth-box{width:min(480px,100%);max-height:92vh;overflow:auto;background:var(--p,#0d1118);color:var(--t,#f4f6f2);border:1px solid var(--l,#ffffff20);border-radius:22px;box-shadow:0 40px 130px #000c;padding:24px;position:relative}
+.real-auth-box h2{margin:7px 0;font-size:40px;line-height:.95;letter-spacing:-.07em}
+.real-auth-tabs{display:flex;gap:7px;margin:16px 0}
+.real-auth-tabs button{border:1px solid var(--l,#ffffff18);background:var(--s,#ffffff09);color:var(--m,#98a2b0);border-radius:999px;padding:8px 11px}
+.real-auth-tabs button.active{background:var(--t,#f4f6f2);color:var(--bg,#07090d);font-weight:850}
+.real-auth-field{display:flex;flex-direction:column;gap:6px;margin-top:11px}
+.real-auth-field label{font-size:11px;color:var(--m,#98a2b0)}
+.real-auth-field input{width:100%;padding:12px 13px;border:1px solid var(--l,#ffffff18);border-radius:11px;background:var(--s,#ffffff09);color:var(--t,#f4f6f2);outline:0}
+.real-auth-field input:focus{border-color:#8ea7ff66;box-shadow:0 0 0 4px #8ea7ff12}
+.real-auth-actions{display:grid;gap:8px;margin-top:14px}
+.real-auth-submit{border:1px solid var(--t,#f4f6f2);background:var(--t,#f4f6f2);color:var(--bg,#07090d);border-radius:11px;padding:12px 14px;font-weight:850}
+.real-auth-forgot{border:0;background:none;color:var(--m,#98a2b0);padding:5px;font-size:11px}
+.real-auth-note{font-size:11px;color:var(--m,#98a2b0);margin-top:11px;line-height:1.55}
+.real-auth-status{min-height:18px;font-size:11px;margin-top:9px}
+.real-auth-status.success{color:var(--g,#7be2b0)}
+.real-auth-status.error{color:var(--bad,#ff9a9a)}
+.real-auth-close{position:absolute;right:13px;top:13px;border:1px solid var(--l,#ffffff18);background:var(--s,#ffffff09);color:var(--t,#f4f6f2);border-radius:9px;padding:7px 9px}
+@media(max-width:560px){.real-auth-box{padding:20px}.real-auth-box h2{font-size:34px}}
+</style>
+<div class="real-auth" id="realAuthModal" aria-hidden="true">
+  <div class="real-auth-box" role="dialog" aria-modal="true" aria-labelledby="realAuthTitle">
+    <button class="real-auth-close" id="realAuthClose" type="button">Close</button>
+    <div class="ey">Secure account access</div>
+    <h2 id="realAuthTitle">Sign in</h2>
+    <div class="real-auth-tabs">
+      <button type="button" data-real-auth="signin" class="active">Sign in</button>
+      <button type="button" data-real-auth="signup">Create account</button>
+    </div>
+    <form id="realAuthForm">
+      <div class="real-auth-field" id="realNameWrap" style="display:none"><label for="realName">Name</label><input id="realName" autocomplete="name" placeholder="Your name"></div>
+      <div class="real-auth-field"><label for="realEmail">Email</label><input id="realEmail" type="email" autocomplete="email" required placeholder="you@example.com"></div>
+      <div class="real-auth-field"><label for="realPassword">Password</label><input id="realPassword" type="password" autocomplete="current-password" minlength="6" required placeholder="6+ characters"></div>
+      <div class="real-auth-actions"><button class="real-auth-submit" id="realAuthSubmit" type="submit">Sign in →</button><button class="real-auth-forgot" id="realForgot" type="button">Forgot password?</button></div>
+      <div class="real-auth-note">Real accounts are stored and authenticated by Supabase. Passwords are never saved in this site. New accounts may require email confirmation.</div>
+      <div class="real-auth-status" id="realAuthStatus"></div>
+    </form>
+  </div>
+</div>
+<script>
+(function(){
+  const URL='https://hfvxgfmefxqdicavxjkq.supabase.co';
+  const KEY='sb_publishable_uNsaL7O4l0ybny3dVyZFZw__rDkSWfS';
+  const SITE='https://auraflare02.github.io/portfolio-websites/';
+  if(!window.supabase){return}
+  const client=window.supabase.createClient(URL,KEY);
+  const modal=document.getElementById('realAuthModal');
+  const title=document.getElementById('realAuthTitle');
+  const form=document.getElementById('realAuthForm');
+  const email=document.getElementById('realEmail');
+  const password=document.getElementById('realPassword');
+  const name=document.getElementById('realName');
+  const nameWrap=document.getElementById('realNameWrap');
+  const status=document.getElementById('realAuthStatus');
+  const submit=document.getElementById('realAuthSubmit');
+  const authBtn=document.getElementById('auth');
+  const userPill=document.getElementById('user');
+  const userText=document.getElementById('userText');
+  let mode='signin';
+
+  function setStatus(text,kind){status.textContent=text||'';status.className='real-auth-status'+(kind?' '+kind:'')}
+  function setMode(next){mode=next;title.textContent=mode==='signin'?'Sign in':'Create your account';nameWrap.style.display=mode==='signup'?'flex':'none';submit.textContent=mode==='signin'?'Sign in →':'Create account →';document.querySelectorAll('[data-real-auth]').forEach(b=>b.classList.toggle('active',b.dataset.realAuth===mode));setStatus('')}
+  function open(modeName){setMode(modeName||'signin');modal.classList.add('show');modal.setAttribute('aria-hidden','false');document.body.classList.add('lock');setTimeout(()=>email.focus(),50)}
+  function close(){modal.classList.remove('show');modal.setAttribute('aria-hidden','true');document.body.classList.remove('lock')}
+  async function sync(){
+    const {data:{user}}=await client.auth.getUser();
+    if(user){
+      userPill.classList.add('show');
+      userText.textContent=user.user_metadata?.name||user.email?.split('@')[0]||'Account';
+      authBtn.textContent='Sign out';
+      authBtn.onclick=async()=>{const {error}=await client.auth.signOut();if(error){toast(error.message)}else{await sync();toast('Signed out')}};
+    }else{
+      userPill.classList.remove('show');
+      authBtn.textContent='Sign in';
+      authBtn.onclick=()=>open('signin');
+    }
+    const mobileBtn=document.getElementById('mAuth');
+    if(mobileBtn) mobileBtn.onclick=()=>{open('signin');const p=document.getElementById('mobilePanel');if(p)p.classList.remove('open')};
+  }
+
+  document.getElementById('realAuthClose').onclick=close;
+  modal.addEventListener('click',e=>{if(e.target===modal)close()});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
+  document.querySelectorAll('[data-real-auth]').forEach(b=>b.onclick=()=>setMode(b.dataset.realAuth));
+  form.addEventListener('submit',async e=>{
+    e.preventDefault();
+    submit.disabled=true;submit.textContent='Working…';setStatus('');
+    const mail=email.value.trim().toLowerCase(),pass=password.value,nm=name.value.trim();
+    let result;
+    if(mode==='signup'){
+      result=await client.auth.signUp({email:mail,password:pass,options:{data:{name:nm}}});
+      if(!result.error){
+        if(result.data.session){close();toast('Account created');await sync()}
+        else setStatus('Account created. Check your email to confirm your account, then sign in.','success');
+      }
+    }else{
+      result=await client.auth.signInWithPassword({email:mail,password:pass});
+      if(!result.error){close();toast('Signed in');await sync()}
+    }
+    if(result.error)setStatus(result.error.message,'error');
+    submit.disabled=false;submit.textContent=mode==='signin'?'Sign in →':'Create account →';
+  });
+  document.getElementById('realForgot').onclick=async()=>{
+    const mail=email.value.trim().toLowerCase();
+    if(!mail){setStatus('Enter your email first.','error');return}
+    setStatus('Sending reset email…');
+    const {error}=await client.auth.resetPasswordForEmail(mail,{redirectTo:SITE+'account/update-password/'});
+    if(error)setStatus(error.message,'error');else setStatus('Reset email sent. Check your inbox.','success');
+  };
+  client.auth.onAuthStateChange(()=>setTimeout(sync,0));
+  sync();
+})();
+</script>
+'''
+              root = root.replace('</body>', css_js + '</body>', 1)
+
+          ROOT.write_text(root, encoding='utf-8')
+
+          reset_dir = Path('account/update-password')
+          reset_dir.mkdir(parents=True, exist_ok=True)
+          reset = '''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Reset your Auraflare02 account password."><title>Update password — Auraflare02</title><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0"></script><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#07090d;color:#f4f6f2;font:15px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.box{width:min(460px,calc(100% - 32px));border:1px solid #ffffff18;border-radius:22px;background:#0d1118;padding:24px}.ey{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#7f899a}.box h1{font-size:44px;line-height:.92;letter-spacing:-.07em;margin:8px 0 20px}.field{display:flex;flex-direction:column;gap:6px;margin-top:12px}.field label{font-size:11px;color:#98a2b0}.field input{padding:12px;border:1px solid #ffffff18;background:#ffffff08;color:#f4f6f2;border-radius:10px;outline:0}.btn{margin-top:14px;width:100%;padding:12px;border:0;border-radius:10px;background:#f4f6f2;color:#07090d;font-weight:850}.status{min-height:20px;font-size:12px;color:#98a2b0;margin-top:10px}.success{color:#7be2b0}.error{color:#ff9a9a}.back{display:block;margin-top:12px;color:#98a2b0;font-size:12px;text-decoration:none}</style></head><body><main class="box"><div class="ey">Auraflare02 · Account</div><h1>Set a new password.</h1><form id="resetForm"><div class="field"><label for="newPassword">New password</label><input id="newPassword" type="password" minlength="6" autocomplete="new-password" required placeholder="6+ characters"></div><div class="field"><label for="confirmPassword">Confirm password</label><input id="confirmPassword" type="password" minlength="6" autocomplete="new-password" required placeholder="Repeat password"></div><button class="btn" type="submit">Update password →</button><div class="status" id="status"></div></form><a class="back" href="../../">← Back to portfolio</a></main><script>const client=supabase.createClient('https://hfvxgfmefxqdicavxjkq.supabase.co','sb_publishable_uNsaL7O4l0ybny3dVyZFZw__rDkSWfS');const form=document.getElementById('resetForm');const status=document.getElementById('status');(async()=>{const {data:{session}}=await client.auth.getSession();if(!session)status.textContent='Open this page from the password reset email.'})();client.auth.onAuthStateChange((event)=>{if(event==='PASSWORD_RECOVERY')status.textContent='Choose your new password.'});form.onsubmit=async e=>{e.preventDefault();status.textContent='Updating…';status.className='status';const a=document.getElementById('newPassword').value,b=document.getElementById('confirmPassword').value;if(a!==b){status.textContent='Passwords do not match.';status.className='status error';return}const {error}=await client.auth.updateUser({password:a});if(error){status.textContent=error.message;status.className='status error';return}status.textContent='Password updated successfully. You can return to the portfolio and sign in.';status.className='status success';setTimeout(()=>client.auth.signOut(),1200)};</script></body></html>'''
+          (reset_dir/'index.html').write_text(reset, encoding='utf-8')
+          PY
+          git diff --check
+          node --check <(python3 - <<'PY'
+          import re
+          s=open('index.html',encoding='utf-8').read()
+          for block in re.findall(r'<script[^>]*>(.*?)</script>', s, re.S)[-2:]:
+              print(block)
+          PY
+          )
+
+      - name: Commit final auth wiring
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html account/update-password/index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Wire real Supabase signup login and password recovery'
+          git push
