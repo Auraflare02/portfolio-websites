@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>HATER — Moderation</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="top"><div><div class="eyebrow">PRIVATE PANEL</div><h1>HATER Moderation</h1><p>Review anonymous submissions. Visitors cannot access this panel without authentication.</p></div><button id="logout" class="ghost hidden">LOG OUT</button></header>
+    <section id="loginCard" class="card">
+      <h2>Admin sign in</h2>
+      <p class="muted">Use the Supabase Auth account approved for this dashboard.</p>
+      <input id="email" type="email" autocomplete="username" placeholder="Admin email">
+      <input id="password" type="password" autocomplete="current-password" placeholder="Password">
+      <button id="login">SIGN IN</button>
+      <div id="loginStatus" class="status"></div>
+    </section>
+    <section id="dashboard" class="hidden">
+      <div class="bar"><div><span id="count">0</span> submissions</div><button id="refresh" class="ghost">REFRESH</button></div>
+      <div id="empty" class="card muted">No submissions yet.</div>
+      <div id="list" class="list"></div>
+    </section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="admin.js"></script>
+</body>
+</html>
