@@ -1,0 +1,4 @@
+data/submissions.json
+.env
+.vercel/
+node_modules/
