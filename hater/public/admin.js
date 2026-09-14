@@ -1,14 +1,84 @@
-const {createClient}=window.supabase;
 const SUPABASE_URL='https://hfvxgfmefxqdicavxjkq.supabase.co';
 const SUPABASE_KEY='sb_publishable_uNsaL7O4l0ybny3dVyZFZw__rDkSWfS';
-const supabase=createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=s=>document.querySelector(s);
 const loginCard=$('#loginCard'),dashboard=$('#dashboard'),loginStatus=$('#loginStatus'),logout=$('#logout'),list=$('#list'),empty=$('#empty'),count=$('#count');
-async function refresh(){const {data,error}=await supabase.from('hater_submissions').select('id,message,status,created_at').order('created_at',{ascending:false});if(error){loginStatus.textContent=error.message;return}count.textContent=data.length;empty.classList.toggle('hidden',data.length!==0);list.innerHTML=data.map(row=>`<article class="item"><div class="meta"><span>${new Date(row.created_at).toLocaleString()}</span><span>${row.status}</span></div><div class="text">${escapeHtml(row.message)}</div><div class="actions"><button class="approve" data-id="${row.id}" data-status="approved">APPROVE</button><button class="reject" data-id="${row.id}" data-status="rejected">REJECT</button><button class="delete" data-id="${row.id}">DELETE</button></div></article>`).join('')}
-function escapeHtml(s){return s.replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
-async function boot(){const {data:{session}}=await supabase.auth.getSession();if(session){loginCard.classList.add('hidden');dashboard.classList.remove('hidden');logout.classList.remove('hidden');await refresh()}}
-$('#login').onclick=async()=>{loginStatus.textContent='Signing in…';const {error}=await supabase.auth.signInWithPassword({email:$('#email').value.trim(),password:$('#password').value});loginStatus.textContent=error?error.message:'';if(!error){loginCard.classList.add('hidden');dashboard.classList.remove('hidden');logout.classList.remove('hidden');await refresh()}};
-$('#refresh').onclick=refresh;
-logout.onclick=async()=>{await supabase.auth.signOut();location.reload()};
-list.onclick=async e=>{const b=e.target.closest('button');if(!b)return;const id=b.dataset.id;if(b.classList.contains('delete')){if(!confirm('Delete this submission?'))return;const {error}=await supabase.from('hater_submissions').delete().eq('id',id);if(error)alert(error.message);else refresh()}else{const {error}=await supabase.from('hater_submissions').update({status:b.dataset.status}).eq('id',id);if(error)alert(error.message);else refresh()}};
-supabase.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT')location.reload()});boot();
+const SESSION_KEY='hater_admin_session';
+
+function getSession(){try{return JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch{return null}}
+function saveSession(session){localStorage.setItem(SESSION_KEY,JSON.stringify(session))}
+function clearSession(){localStorage.removeItem(SESSION_KEY)}
+
+async function authRequest(path,body){
+  const r=await fetch(`${SUPABASE_URL}/auth/v1/${path}`,{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY},body:JSON.stringify(body)});
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(data.error_description||data.msg||data.message||'Authentication failed.');
+  return data;
+}
+
+async function ensureAccessToken(){
+  let s=getSession();
+  if(!s?.access_token)return null;
+  if(s.expires_at && Date.now()<s.expires_at-60000)return s.access_token;
+  if(!s.refresh_token)return s.access_token;
+  try{
+    const data=await authRequest('token?grant_type=refresh_token',{refresh_token:s.refresh_token});
+    s={...data,expires_at:Date.now()+((data.expires_in||3600)*1000)};
+    saveSession(s);
+    return s.access_token;
+  }catch{clearSession();return null}
+}
+
+async function api(path,options={}){
+  const token=await ensureAccessToken();
+  if(!token)throw new Error('Please sign in first.');
+  const headers={...(options.headers||{}),apikey:SUPABASE_KEY,Authorization:`Bearer ${token}`};
+  const r=await fetch(`${SUPABASE_URL}/rest/v1/${path}`,{...options,headers});
+  const text=await r.text();
+  let data;try{data=text?JSON.parse(text):null}catch{data=text}
+  if(!r.ok)throw new Error(data?.message||data?.hint||data?.error_description||'Request failed.');
+  return data;
+}
+
+async function refresh(){
+  try{
+    const data=await api('hater_submissions?select=id,message,status,created_at&order=created_at.desc');
+    count.textContent=data.length;
+    empty.classList.toggle('hidden',data.length!==0);
+    list.innerHTML=data.map(row=>`<article class="item"><div class="meta"><span>${new Date(row.created_at).toLocaleString()}</span><span>${row.status}</span></div><div class="text">${escapeHtml(row.message)}</div><div class="actions"><button class="approve" data-id="${row.id}" data-status="approved">APPROVE</button><button class="reject" data-id="${row.id}" data-status="rejected">REJECT</button><button class="delete" data-id="${row.id}">DELETE</button></div></article>`).join('');
+    loginStatus.textContent='';
+  }catch(e){loginStatus.textContent=e.message||'Could not load submissions.'}
+}
+
+function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+function showDashboard(){loginCard.classList.add('hidden');dashboard.classList.remove('hidden');logout.classList.remove('hidden');refresh()}
+
+$('#login').addEventListener('click',async()=>{
+  const email=$('#email').value.trim(),password=$('#password').value;
+  if(!email||!password){loginStatus.textContent='Enter your email and password.';return}
+  const btn=$('#login');btn.disabled=true;btn.textContent='SIGNING IN…';loginStatus.textContent='';
+  try{
+    const data=await authRequest('token?grant_type=password',{email,password});
+    saveSession({...data,expires_at:Date.now()+((data.expires_in||3600)*1000)});
+    showDashboard();
+  }catch(e){loginStatus.textContent=e.message||'Sign in failed.'}
+  finally{btn.disabled=false;btn.textContent='SIGN IN'}
+});
+
+$('#refresh').addEventListener('click',refresh);
+logout.addEventListener('click',()=>{clearSession();location.reload()});
+
+list.addEventListener('click',async e=>{
+  const b=e.target.closest('button');if(!b)return;
+  const id=b.dataset.id;
+  try{
+    if(b.classList.contains('delete')){
+      if(!confirm('Delete this submission?'))return;
+      await api(`hater_submissions?id=eq.${encodeURIComponent(id)}`,{method:'DELETE'});
+    }else{
+      await api(`hater_submissions?id=eq.${encodeURIComponent(id)}`,{method:'PATCH',headers:{'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({status:b.dataset.status})});
+    }
+    refresh();
+  }catch(err){alert(err.message||'Action failed.')}
+});
+
+(function boot(){if(getSession()?.access_token)showDashboard()})();
