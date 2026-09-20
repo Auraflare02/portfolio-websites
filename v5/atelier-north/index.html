@@ -34,4 +34,42 @@ qa('.faq-btn').forEach(b=>b.onclick=()=>b.parentElement.classList.toggle('open')
 q('#briefForm').onsubmit=e=>{e.preventDefault();q('#briefStatus').textContent='Thanks — your brief is ready for the next step. This is a portfolio demo, so nothing was sent.';e.target.reset();showToast('Project brief submitted')};
 const io=new IntersectionObserver(es=>es.forEach(e=>e.isIntersecting&&e.target.classList.add('in')),{threshold:.14});qa('.reveal').forEach(el=>io.observe(el));
 addEventListener('keydown',e=>{if(e.key==='Escape')qa('.modal.show').forEach(m=>closeModal(m.id))});
+</script><style id="afx-interactions">
+#afxProgress{position:fixed;top:0;left:0;width:0;height:3px;z-index:9999;background:linear-gradient(90deg,var(--afx1,#9db1ff),var(--afx2,#74e0b5));box-shadow:0 0 18px rgba(140,170,255,.45);pointer-events:none}
+#afxGlow{position:fixed;width:190px;height:190px;border-radius:50%;pointer-events:none;z-index:2;opacity:0;transform:translate(-50%,-50%);background:radial-gradient(circle,rgba(153,178,255,.11),transparent 68%);mix-blend-mode:screen;transition:opacity .25s;filter:blur(1px)}
+.afx-tilt{transform-style:preserve-3d;transition:transform .25s ease,box-shadow .25s ease}
+.afx-tilt.afx-hover{box-shadow:0 26px 70px rgba(0,0,0,.12)!important}
+.afx-tilt:after{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;border-radius:inherit;background:radial-gradient(circle at var(--afx-x,50%) var(--afx-y,50%),rgba(255,255,255,.13),transparent 32%);transition:opacity .2s}
+.afx-tilt.afx-hover:after{opacity:1}
+.afx-reveal{opacity:0;transform:translateY(24px) scale(.985);transition:opacity .65s ease,transform .65s cubic-bezier(.22,.7,.25,1)}
+.afx-reveal.afx-in{opacity:1;transform:none}
+.afx-shine{position:relative;overflow:hidden}
+.afx-shine:before{content:"";position:absolute;inset:-120% 55% -120% -55%;z-index:3;pointer-events:none;transform:translateX(-120%) rotate(16deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.16),transparent);transition:transform .7s ease}
+.afx-shine:hover:before{transform:translateX(300%) rotate(16deg)}
+.afx-ripple{position:absolute;border-radius:50%;pointer-events:none;transform:scale(0);background:rgba(255,255,255,.28);animation:afxRipple .55s ease-out forwards}
+@keyframes afxRipple{to{transform:scale(2.8);opacity:0}}
+@media(max-width:900px){#afxGlow{display:none}.afx-tilt{transform:none!important}.afx-shine:before{display:none}}
+@media(prefers-reduced-motion:reduce){#afxProgress{display:none}.afx-reveal{opacity:1;transform:none;transition:none}.afx-tilt,.afx-tilt.afx-hover{transform:none!important;transition:none}.afx-shine:before,.afx-ripple{display:none}}
+</style><div id="afxProgress"></div><div id="afxGlow"></div>
+<script>
+(()=>{const d=document,w=window,progress=d.getElementById('afxProgress'),glow=d.getElementById('afxGlow');
+const reduce=w.matchMedia('(prefers-reduced-motion: reduce)').matches, fine=w.matchMedia('(pointer:fine)').matches;
+const update=()=>{if(progress){const max=d.documentElement.scrollHeight-w.innerHeight;progress.style.width=(max>0?Math.min(100,w.scrollY/max*100):0).toFixed(2)+'%'}};w.addEventListener('scroll',update,{passive:true});update();
+if(!reduce){
+const candidates=[...d.querySelectorAll('.card,.price-card,.product,.project-card,.case-card,.note,.quote,.trust,.skill,.box,.mock-card,.feature,.testimonial,.service-card,.article-card')];
+candidates.forEach((el,i)=>{el.classList.add('afx-tilt','afx-shine');if(i<90)el.classList.add('afx-reveal')});
+const observer=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('afx-in');observer.unobserve(e.target)}}),{threshold:.09,rootMargin:'0px 0px -45px'});
+d.querySelectorAll('.afx-reveal').forEach(el=>observer.observe(el));
+if(fine){
+w.addEventListener('pointermove',e=>{if(glow){glow.style.left=e.clientX+'px';glow.style.top=e.clientY+'px';glow.style.opacity='1'}},{passive:true});
+candidates.forEach(el=>{
+el.addEventListener('pointermove',e=>{const r=el.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;el.style.setProperty('--afx-x',(x*100).toFixed(1)+'%');el.style.setProperty('--afx-y',(y*100).toFixed(1)+'%');el.classList.add('afx-hover');el.style.transform='perspective(900px) rotateX('+((.5-y)*5.5).toFixed(2)+'deg) rotateY('+((x-.5)*5.5).toFixed(2)+'deg) translateY(-4px)'},{passive:true});
+el.addEventListener('pointerleave',()=>{el.classList.remove('afx-hover');el.style.transform='';});
+});
+d.querySelectorAll('button,.btn,.add,.bag,.choice,.filter,.auth-tab').forEach(btn=>{
+btn.addEventListener('click',e=>{const r=btn.getBoundingClientRect(),s=d.createElement('span'),size=Math.max(r.width,r.height)*.45;s.className='afx-ripple';s.style.width=s.style.height=size+'px';s.style.left=(e.clientX-r.left-size/2)+'px';s.style.top=(e.clientY-r.top-size/2)+'px';btn.style.position='relative';btn.appendChild(s);setTimeout(()=>s.remove(),600)});
+});
+}
+}
+})();
 </script></body></html>
