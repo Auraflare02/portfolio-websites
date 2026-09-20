@@ -22,7 +22,7 @@
 const reduce=w.matchMedia('(prefers-reduced-motion: reduce)').matches, fine=w.matchMedia('(pointer:fine)').matches;
 const update=()=>{if(progress){const max=d.documentElement.scrollHeight-w.innerHeight;progress.style.width=(max>0?Math.min(100,w.scrollY/max*100):0).toFixed(2)+'%'}};w.addEventListener('scroll',update,{passive:true});update();
 if(!reduce){
-const candidates=[...d.querySelectorAll('.card,.price-card,.product,.project-card,.case-card,.note,.quote,.trust,.skill,.box,.mock-card,.feature,.testimonial,.service-card,.article-card')];
+const candidates=[...d.querySelectorAll('.card,.price-card,.product,.project-card,.case-card,.note,.quote,.trust,.skill,.box,.mock-card,.feature,.testimonial,.service-card,.article-card')].filter(el=>!el.closest('.modal,.drawer'));
 candidates.forEach((el,i)=>{el.classList.add('afx-tilt','afx-shine');if(i<90)el.classList.add('afx-reveal')});
 const observer=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('afx-in');observer.unobserve(e.target)}}),{threshold:.09,rootMargin:'0px 0px -45px'});
 d.querySelectorAll('.afx-reveal').forEach(el=>observer.observe(el));
