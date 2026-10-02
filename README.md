@@ -1,12 +1,13 @@
 # Auraflare02 — Three Portfolio Websites
 
-Three polished, responsive concept websites for a web-development portfolio.
+Polished, responsive website concepts plus a product build for a web-development portfolio.
 
 ## Projects
 
 - **Atelier North** — luxury architecture & interiors studio
 - **Orbit** — SaaS/productivity startup landing page
 - **NOVA Goods** — editorial e-commerce storefront
+- **AuraMind** — research-first AI accountability product
 
 ## Structure
 
@@ -35,4 +36,4 @@ The repository includes a GitHub Actions Pages workflow. In the repository's **S
 
 ## Portfolio note
 
-These are **concept projects**. Do not present the fictional companies or results as real clients or real business outcomes.
+Atelier North, Orbit and NOVA Goods are **concept projects**. AuraMind is a separate product build and links to its live application. Do not present the fictional companies or their results as real clients or real business outcomes.
